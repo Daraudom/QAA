@@ -12,6 +12,24 @@
 *.gtf
 *.gff
 
+#directories
+Picard_files/
+SRR25630376/
+STAR_files/
+campy_files/
+campy_starAlign_STARtmp/
+campylomormyrus_STAR/
+comrhy114_EO_adult/
+comrhy114_EO_adult1_fastqc.zip
+comrhy114_EO_adult2_fastqc.zip
+fastq_files/
+html_fastqc/
+logfiles/
+read_len_dist_files/
+rename.sh
+rhy51_EO_6cm_1_fastqc.zip
+rhy51_EO_6cm_2_fastqc.zip
+
 # STAR files
 *.out.tab
 _STARtmp/
