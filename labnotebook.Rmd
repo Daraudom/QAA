@@ -1,0 +1,418 @@
+# 03/09/25
+
+## Part 1 - Read Quality Score Distribution
+
+### Creating a new conda environment for QAA
+
+-   New env keeps tools isolated; consider installing from `bioconda/conda-forge` for bio tools and reproducibility.
+
+``` bash
+mamba create -n QAA
+mamba activate QAA
+mamba install fastqc cutadapt trimmomatic
+```
+
+### Downloading the datasets
+
+-   Make sure **sra-tools** is installed; `prefetch` pulls SRA, `fasterq-dump --gzip` converts to gzipped FASTQ (pair-aware).
+-   Tip: add `--threads` to speed up `fasterq-dump`.
+
+``` bash
+# Activate the appropriate environment
+mamba sra-tools
+prefetch SRR25630376
+prefetch SRR25630302
+
+fasterq-dump --gzip SRR*
+```
+
+### Running fastqc
+
+-   Quick per-file QC; you can add `-t 8 -o qc/` to multi-thread and send reports to a folder.
+
+``` code
+fastqc *.gz 
+```
+
+### Running the `qual_dist.py` script
+
+-   Good to record **total lines** and **read length**; your length=151 check matches typical PE150 with newline counting nuance.
+-   Store `length` and `recordsnum` for later sanity checks (e.g., per-cycle Q plots).
+
+``` bash
+# Computing number of lines
+zcat SRR25630302_1.fastq.gz | wc -l
+181461512
+
+zcat SRR25630376_1.fastq.gz | wc -l
+143120352
+
+# Computing read length
+zcat SRR25630302_1.fastq.gz | head -n 4 | sed -n '2p' | wc -c
+151
+
+zcat SRR25630376_1.fastq.gz | head -n 4 | sed -n '2p' | wc -c
+151
+```
+
+``` python
+```
+
+### Running the fastqc
+
+-   Re-run after trimming later to compare pre/post QC trends.
+
+A quick command used was `fastqc *.gz`.
+
+## Part 2 - Trimming
+
+### Running cutadapter
+
+-   Adapter clipping first reduces burden on Trimmomatic; consider `-j 8` for threads and saving the **report** (`-o/-p` already do).
+-   Keep the same adapter set across samples for consistency.
+
+``` bash
+/usr/bin/time -v cutadapt -a AGATCGGAAGAGCACACGTCTGAACTCCAGTCA -A AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT -o SRR25630376_r1_trimmed.fq.gz -p SRR25630376_r2_trimmed.fq.gz SRR25630376_1.fastq.gz SRR25630376_2.fastq.gz
+
+/usr/bin/time -v cutadapt -a AGATCGGAAGAGCACACGTCTGAACTCCAGTCA -A AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT -o SRR25630302_r1_trimmed.fq.gz -p SRR25630302_r2_trimmed.fq.gz SRR25630302_1.fastq.gz SRR25630302_2.fastq.gz
+```
+
+### Running Trimmomatic
+
+-   Parameters look reasonable; `SLIDINGWINDOW:5:15` trims low-Q tails; `MINLEN:35` drops short reads.
+-   Consider adding `ILLUMINACLIP` if adapters might remain.
+
+``` bash
+trimmomatic PE -threads 8 -phred33  SRR25630302_r1_trimmed.fq.gz SRR25630302_r2_trimmed.fq.gz SRR25630302_output_forward_paired.fq.gz SRR25630302_output_forward_unpaired.fq.gz SRR25630302_output_reverse_paired.fq.gz SRR25630302_output_reverse_unpaired.fq.gz HEADCROP:8 LEADING:3 TRAILING:3 SLIDINGWINDOW:5:15 MINLEN:35
+
+trimmomatic PE -threads 8 -phred33  SRR25630376_r1_trimmed.fq.gz SRR25630376_r2_trimmed.fq.gz SRR25630376_output_forward_paired.fq.gz SRR25630376_output_forward_unpaired.fq.gz SRR25630376_output_reverse_paired.fq.gz SRR25630376_output_reverse_unpaired.fq.gz HEADCROP:8 LEADING:3 TRAILING:3 SLIDINGWINDOW:5:15 MINLEN:35
+```
+
+------------------------------------------------------------------------
+
+# 06/09/25
+
+### Extracting Read Length
+
+-   Filtering **sequence lines** with `NR%4==2`; streaming with `zcat` avoids temp files.
+-   Ensure filenames match your Trimmomatic outputs.
+
+``` bash
+#!/usr/bin/env bash
+
+files="SRR25630302 SRR25630376"
+
+for file in $files; do
+    zcat ${file}_forward_paired_fq.gz | awk 'NR%4==2{print length($0)}' > ${file}_R1_length.txt
+    zcat ${file}_reverse_paired_fq.gz | awk 'NR%4==2{print length($0)}' > ${file}_R2_length.txt
+```
+
+### Extracting Read Length Distribution
+
+-   `sort -n | uniq -c` yields frequency per length; flipping columns to `length<TAB>count` is ggplot-friendly.
+
+``` bash
+#!/usr/bin/env bash
+
+files="SRR25630302 SRR25630376"
+
+for file in "${files[@]}"; do
+  for mate in R1 R2; do
+    in="${file}_${mate}_read_length.txt"          # one number (length) per line
+    out="${file}_${mate}_len_dist.tsv"       # length \t count
+
+    # Numeric sort, count duplicates, flip to length \t count
+    sort -n "$in" | uniq -c | awk '{print $2 "\t" $1}' > "$out"
+  done
+done
+```
+
+### Plotting Read Length Distribution in R
+
+-   Wrote a function that combine the 4 tsv files into one long dataframe file
+-   Line plot of pre-counted bins; optionally facet by sample or color by mate.
+-   Add `col_names = FALSE` if files lack headers.
+
+``` r
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(readr)   # faster read_table()
+
+read_len_dist_files <- c(
+  "rhy51_EO_6cm_R1_len_dist.tsv",
+  "rhy51_EO_6cm_R2_len_dist.tsv",
+  "comrhy114_EO_adult_R1_len_dist.tsv",
+  "comrhy114_EO_adult_R2_len_dist.tsv"
+)
+
+dir <- "read_len_dist_files"  # folder containing the TSVs
+
+# Helper to parse sample & mate from file name like SRR25630302_R1_len_dist.tsv
+# Parse sample and mate from filenames like rhy51_EO_6cm_R1_len_dist.tsv
+parse_meta <- function(fname) {
+  tibble(
+    file   = fname,
+    sample = str_match(fname, "^([^_]+_[^_]+_[^_]+)")[,2],  # everything up to the R1/R2
+    mate   = str_match(fname, "_(R[12])_")[,2]              # R1 or R2
+  )
+}
+
+# Read & combine
+df <- read_len_dist_files %>%
+  lapply(function(f) {
+    meta <- parse_meta(f)
+    read_table(
+      file = file.path(dir, f),
+      col_names = c("Length", "Count"),
+      col_types = cols(
+        Length = col_integer(),
+        Count  = col_integer()
+      )
+    ) %>%
+      mutate(sample = meta$sample,
+             mate   = meta$mate)
+  }) %>%
+  bind_rows() %>%
+  mutate(mate = factor(mate, levels = c("R1","R2"))) %>%
+  arrange(sample, mate, Length)
+
+df$mate <- factor(df$mate, levels = c("R1","R2"))   # lock color order
+pal <- c(R1 = "steelblue", R2 = "salmon")            # pick colors
+
+for (s in unique(df$sample)) {
+  d <- filter(df, sample == s)
+
+  p <- ggplot(d, aes(x = Length, y = Count, color = mate, group = mate)) +
+    geom_line(linewidth = 0.87) +
+    #geom_col(position = "dodge") +
+    scale_color_manual(values = pal, name = "Mate", labels = c("Read 1","Read 2")) +
+    scale_x_continuous(breaks = seq(30, 150, 10), minor_breaks = seq(30, 150, 5)) +
+    labs(title = paste("Read-length distribution —", s),
+         x = "Read length (bp)", y = "Read count") +
+    theme_minimal(base_size = 13)
+  ggsave(filename = paste0("posttrim_readlen_", s, ".png"), plot = p, width = 7, height = 4, dpi = 300)
+
+  print(p)  # shows each plot separately
+}
+```
+
+## Part 3: Alignment
+
+### Creating a STAR Database
+
+-   `gffread` → GTF; STAR index uses `--sjdbGTFfile`.
+-   Consider `--sjdbOverhang=READLEN-1` and STAR’s recommended `--genomeSAindexNbases` for your genome size.
+
+``` bash
+#!/bin/bash
+#SBATCH --account=bgmp
+#SBATCH --partition=bgmp
+#SBATCH --cpus-per-task=8
+#SBATCH --time=5:00:00
+#SBATCH --job-name=campy_star_database
+#SBATCH --output=star_db_output.log
+#SBATCH --error=star_db_error.log
+
+mamba activate QAA
+
+dir="/projects/bgmp/dnhem/bioinfo/Bi623/PS/QAA/campylomormyrus_STAR/"
+
+mkdir -p "$dir" # safely creates on if needed
+
+campy_dir="/projects/bgmp/dnhem/bioinfo/Bi623/PS/QAA/campy/"
+
+# convert gff to gtf
+gffread ${campy_dir}campylomormyrus.gff -T -o ${campy_dir}campylomormyrus.gtf
+
+/usr/bin/time -v STAR --runThreadN 8 \
+ --runMode genomeGenerate \
+ --genomeDir $dir \
+ --genomeFastaFiles  ${campy_dir}campylomormyrus.fa \
+ --sjdbGTFfile ${campy_dir}campylomormyrus.gtf
+
+exit
+```
+
+### Running STAR Alignment
+
+-   Use a **unique `--outFileNamePrefix` per sample** to avoid overwriting, and reference the correct `trim_dir` variable.
+-   Add `--outSAMtype BAM SortedByCoordinate` to skip SAM→BAM sorting later.
+
+``` bash
+#!/bin/bash
+#SBATCH --account=bgmp
+#SBATCH --partition=bgmp
+#SBATCH --cpus-per-task=8
+#SBATCH --time=5:00:00
+#SBATCH --job-name=campy_star_alignment
+#SBATCH --output=star_aln_output.log
+#SBATCH --error=star_aln_error.log
+
+files="SRR25630302 SRR25630376"
+r1="output_forward_paired.fq.gz"
+r2="output_reverse_paired.fq.gz"
+  
+mamba activate QAA
+
+dir="/projects/bgmp/dnhem/bioinfo/Bi623/PS/QAA/campylomormyrus_STAR/"
+trim_dir="/projects/bgmp/dnhem/bioinfo/Bi623/PS/QAA/trimmomatic_outputs/"
+
+
+  
+for file in $files; do
+/usr/bin/time -v STAR --runThreadN 8 --runMode alignReads \
+ --outFilterMultimapNmax 3 \
+ --outSAMunmapped Within KeepPairs \
+ --alignIntronMax 1000000 --alignMatesGapMax 1000000 \
+ --readFilesCommand zcat \
+ --readFilesIn trim/${file}_$r1 trim/${file}_$r2 \
+ --genomeDir ${dir} \
+ --outFileNamePrefix campy_starAlign
+done
+
+exit
+```
+
+### Running picard
+
+-   Sort → index → mark duplicates; metrics file is useful for QC (% duplication).
+-   Picard expects coordinate-sorted input; your order is correct.
+
+``` bash
+#!/bin/bash
+#SBATCH --account=bgmp
+#SBATCH --partition=bgmp
+#SBATCH --cpus-per-task=8
+#SBATCH --time=5:00:00
+#SBATCH --job-name=campy_picard
+#SBATCH --output=picard_output.log
+#SBATCH --error=picard_error.log
+
+# good for making it robust
+set -euo pipefail
+
+mamba activate QAA
+
+files="SRR25630302 SRR25630376"
+ex="campy_starAligned.out.sam"
+
+for file in $files; do
+  # Convert SAM to BAM
+  samtools view -@ ${SLURM_CPUS_PER_TASK} -bS ${file}_${ex} \
+    -o ${file}_starAligned.bam
+
+  # Sort BAM
+  samtools sort -@ ${SLURM_CPUS_PER_TASK} \
+    -o ${file}_starAligned_sorted.bam \
+    ${file}_starAligned.bam
+
+  # Index BAM (useful for downstream)
+  samtools index ${file}_starAligned_sorted.bam
+
+  # Mark duplicates with Picard
+  picard MarkDuplicates \
+    INPUT=${file}_starAligned_sorted.bam \
+    OUTPUT=${file}_picard.bam \
+    METRICS_FILE=${file}_picard.metrics \
+    REMOVE_DUPLICATES=true \
+    VALIDATION_STRINGENCY=LENIENT
+done
+```
+
+### Running the map_count
+
+-   Converts BAM→SAM for a primary mapped/unmapped counter; alternatively pipe `samtools view` to Python to avoid big SAM files.
+
+``` bash
+#!/bin/bash
+#SBATCH --account=bgmp
+#SBATCH --partition=bgmp
+#SBATCH --cpus-per-task=8
+#SBATCH --time=5:00:00
+#SBATCH --job-name=map_count
+#SBATCH --output=map_count_output.log
+#SBATCH --error=map_count_error.log
+
+# good for making it robust
+set -euo pipefail
+
+mamba activate QAA
+
+files="SRR25630302 SRR25630376"
+ex="picard.bam"
+
+for file in $files; do
+  # Convert BAM to SAM
+  samtools view -@ ${SLURM_CPUS_PER_TASK} -h \
+    -o ${file}_picard.sam \
+    ${file}_${ex} 
+  
+  echo "Processing ${file}_${ex}"
+  
+  ./genome_map_count.py -i ${file}_picard.sam
+
+done
+```
+
+### Running htseq-count
+
+-   Use `-i ID` (matches your GFF attribute).
+-   Output files for `-s yes` vs `-s reverse` should be **different** to avoid overwrite; pick the strandness that matches your library.
+
+``` bash
+#!/bin/bash
+#SBATCH --account=bgmp
+#SBATCH --partition=bgmp
+#SBATCH --cpus-per-task=8
+#SBATCH --time=5:00:00
+#SBATCH --job-name=ht-seq
+#SBATCH --output=htseq_output.log
+#SBATCH --error=htseq_error.log
+
+# good for making it robust
+set -euo pipefail
+
+mamba activate QAA
+
+files="SRR25630302 SRR25630376"
+ex="picard.bam"
+gff_file="/projects/bgmp/dnhem/bioinfo/Bi623/PS/QAA/campy/campylomormyrus.gff"
+
+for file in $files; do
+htseq-count -f bam -s yes -i ID ${file}_${ex} ${gff_file} > ${file}_stranded_htseq.txt
+htseq-count -f bam -s reverse -i ID ${file}_${ex} ${gff_file} > ${file}_reverse_htseq.txt
+done
+```
+
+### Counting deduplicated mapped reads
+
+-   Summing col 2 and dropping the last `__summary` rows is perfect; fix the shebang and align paths to your outputs.
+
+``` bash
+#!usr/bin/env bash
+
+# good for making it robust
+set -euo pipefail
+
+mamba activate QAA
+
+dir="/projects/bgmp/dnhem/bioinfo/Bi623/PS/QAA/ht-seq_files/"
+files="SRR25630302 SRR25630376"
+rev="reverse_htseq.txt"
+strand="stranded_htseq.txt"
+
+for file in $files; do
+# Grab every lines but the last 5 lines
+echo "Processing ${file}_${rev}:"
+head -n -5 ${dir}${file}_${rev} | awk '{sum += $2} END {print sum, "reads counted"}'
+
+echo "Processing ${file}_${strand}:"
+head -n -5 ${dir}${file}_${strand} | awk '{sum += $2} END {print sum, "reads counted"}'
+
+done
+
+exit
+```
+
+**Side Note:** Proper File naming conventions were manually done at the end of the analysis!
