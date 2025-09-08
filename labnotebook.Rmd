@@ -55,7 +55,22 @@ zcat SRR25630376_1.fastq.gz | head -n 4 | sed -n '2p' | wc -c
 151
 ```
 
+### `usr/bin/time -v output`
+
 ``` python
+Command being timed: "./qual_dist.py -r1 SRR25630302_1.fastq.gz -r2 SRR25630302_2.fastq.gz -l 150 -n 181461512 -s SRR25630302"
+        User time (seconds): 1274.55
+        System time (seconds): 0.66
+        Percent of CPU this job got: 199%
+        Elapsed (wall clock) time (h:mm:ss or m:ss): 10:40.54
+        Maximum resident set size (kbytes): 70484
+
+Command being timed: "./qual_dist.py -r1 SRR25630376_1.fastq.gz -r2 SRR25630376_2.fastq.gz -l 150 -n 143120352 -s SRR25630376"
+        User time (seconds): 994.44
+        System time (seconds): 0.60
+        Percent of CPU this job got: 196%
+        Elapsed (wall clock) time (h:mm:ss or m:ss): 8:25.49
+        Maximum resident set size (kbytes): 69848
 ```
 
 ### Running the fastqc
@@ -63,6 +78,17 @@ zcat SRR25630376_1.fastq.gz | head -n 4 | sed -n '2p' | wc -c
 -   Re-run after trimming later to compare pre/post QC trends.
 
 A quick command used was `fastqc *.gz`.
+
+### `/usr/bin/time -v` output
+
+```         
+ Command being timed: "fastqc SRR25630302_1.fastq.gz SRR25630302_2.fastq.gz SRR25630376_1.fastq.gz SRR25630376_2.fastq.gz"
+        User time (seconds): 895.49
+        System time (seconds): 56.47
+        Percent of CPU this job got: 106%
+        Elapsed (wall clock) time (h:mm:ss or m:ss): 14:51.03
+        Maximum resident set size (kbytes): 532420
+```
 
 ## Part 2 - Trimming
 
@@ -77,6 +103,24 @@ A quick command used was `fastqc *.gz`.
 /usr/bin/time -v cutadapt -a AGATCGGAAGAGCACACGTCTGAACTCCAGTCA -A AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT -o SRR25630302_r1_trimmed.fq.gz -p SRR25630302_r2_trimmed.fq.gz SRR25630302_1.fastq.gz SRR25630302_2.fastq.gz
 ```
 
+### `usr/bin/time -v output`
+
+```         
+Command being timed: "cutadapt -a AGATCGGAAGAGCACACGTCTGAACTCCAGTCA -A AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT -o SRR25630376_r1_trimmed.fq.gz -p SRR25630376_r2_trimmed.fq.gz SRR25630376_1.fastq.gz SRR25630376_2.fastq.gz"
+        User time (seconds): 382.26
+        System time (seconds): 1.46
+        Percent of CPU this job got: 99%
+        Elapsed (wall clock) time (h:mm:ss or m:ss): 6:26.40
+        Maximum resident set size (kbytes): 38228
+
+Command being timed: "cutadapt -a AGATCGGAAGAGCACACGTCTGAACTCCAGTCA -A AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT -o SRR25630302_r1_trimmed.fq.gz -p SRR25630302_r2_trimmed.fq.gz SRR25630302_1.fastq.gz SRR25630302_2.fastq.gz"
+        User time (seconds): 406.68
+        System time (seconds): 1.95
+        Percent of CPU this job got: 99%
+        Elapsed (wall clock) time (h:mm:ss or m:ss): 6:51.59
+        Maximum resident set size (kbytes): 38152
+```
+
 ### Running Trimmomatic
 
 -   Parameters look reasonable; `SLIDINGWINDOW:5:15` trims low-Q tails; `MINLEN:35` drops short reads.
@@ -86,6 +130,24 @@ A quick command used was `fastqc *.gz`.
 trimmomatic PE -threads 8 -phred33  SRR25630302_r1_trimmed.fq.gz SRR25630302_r2_trimmed.fq.gz SRR25630302_output_forward_paired.fq.gz SRR25630302_output_forward_unpaired.fq.gz SRR25630302_output_reverse_paired.fq.gz SRR25630302_output_reverse_unpaired.fq.gz HEADCROP:8 LEADING:3 TRAILING:3 SLIDINGWINDOW:5:15 MINLEN:35
 
 trimmomatic PE -threads 8 -phred33  SRR25630376_r1_trimmed.fq.gz SRR25630376_r2_trimmed.fq.gz SRR25630376_output_forward_paired.fq.gz SRR25630376_output_forward_unpaired.fq.gz SRR25630376_output_reverse_paired.fq.gz SRR25630376_output_reverse_unpaired.fq.gz HEADCROP:8 LEADING:3 TRAILING:3 SLIDINGWINDOW:5:15 MINLEN:35
+```
+
+### `usr/bin/time -v output`
+
+```         
+Command being timed: "trimmomatic PE -phred33 -threads 10 SRR25630302_r1_trimmed.fq.gz SRR25630302_r2_trimmed.fq.gz SRR25630302_output_forward_paired.fq.gz SRR25630302_output_forward_unpaired.fq.gz SRR25630302_output_reverse_paired.fq.gz SRR25630302_output_reverse_unpaired.fq.gz HEADCROP:8 LEADING:3 TRAILING:3 SLIDINGWINDOW:5:15 MINLEN:35"
+        User time (seconds): 4591.23
+        System time (seconds): 52.03
+        Percent of CPU this job got: 1024%
+        Elapsed (wall clock) time (h:mm:ss or m:ss): 7:33.03
+        Maximum resident set size (kbytes): 1213900
+
+Command being timed: "trimmomatic PE -phred33 -threads 10 SRR25630376_r1_trimmed.fq.gz SRR25630376_r2_trimmed.fq.gz SRR25630376_output_forward_paired.fq.gz SRR25630376_output_forward_unpaired.fq.gz SRR25630376_output_reverse_paired.fq.gz SRR25630376_output_reverse_unpaired.fq.gz HEADCROP:8 LEADING:3 TRAILING:3 SLIDINGWINDOW:5:15 MINLEN:35"
+        User time (seconds): 3452.97
+        System time (seconds): 37.57
+        Percent of CPU this job got: 1032%
+        Elapsed (wall clock) time (h:mm:ss or m:ss): 5:38.22
+        Maximum resident set size (kbytes): 1219552
 ```
 
 ------------------------------------------------------------------------
@@ -234,6 +296,17 @@ gffread ${campy_dir}campylomormyrus.gff -T -o ${campy_dir}campylomormyrus.gtf
 exit
 ```
 
+#### `/usr/bin/time -v output`
+
+```         
+Command being timed: "STAR --runThreadN 8 --runMode genomeGenerate --genomeDir /projects/bgmp/dnhem/bioinfo/Bi623/PS/QAA/campylomormyrus_STAR/ --genomeFastaFiles /projects/bgmp/dnhem/bioinfo/Bi623/PS/QAA/campy/campylomormyrus.fasta --sjdbGTFfile /projects/bgmp/dnhem/bioinfo/Bi623/PS/QAA/campy/campylomormyrus.gtf"
+        User time (seconds): 1563.50
+        System time (seconds): 21.84
+        Percent of CPU this job got: 395%
+        Elapsed (wall clock) time (h:mm:ss or m:ss): 6:40.85
+        Maximum resident set size (kbytes): 24824812
+```
+
 ### Running STAR Alignment
 
 -   Use a **unique `--outFileNamePrefix` per sample** to avoid overwriting, and reference the correct `trim_dir` variable.
@@ -272,6 +345,17 @@ for file in $files; do
 done
 
 exit
+```
+
+#### `/usr/bin/time -v output`
+
+```         
+Command being timed: "STAR --runThreadN 8 --runMode alignReads --outFilterMultimapNmax 3 --outSAMunmapped Within KeepPairs --alignIntronMax 1000000 --alignMatesGapMax 1000000 --readFilesCommand zcat --readFilesIn /projects/bgmp/dnhem/bioinfo/Bi623/PS/QAA/trimmomatic_outputs/SRR25630376_output_forward_paired.fq.gz /projects/bgmp/dnhem/bioinfo/Bi623/PS/QAA/trimmomatic_outputs/SRR25630376_output_reverse_paired.fq.gz --genomeDir /projects/bgmp/dnhem/bioinfo/Bi623/PS/QAA/campylomormyrus_STAR/ --outFileNamePrefix SRR25630376_campy_star"
+        User time (seconds): 3926.99
+        System time (seconds): 14.70
+        Percent of CPU this job got: 760%
+        Elapsed (wall clock) time (h:mm:ss or m:ss): 8:38.47
+        Maximum resident set size (kbytes): 11393020
 ```
 
 ### Running picard
@@ -413,6 +497,58 @@ head -n -5 ${dir}${file}_${strand} | awk '{sum += $2} END {print sum, "reads cou
 done
 
 exit
+```
+
+# 07/09/25
+
+## Strandness Test
+
+-   Summarize strandedness by comparing how many reads htseq-count assigns under `--stranded=reverse` vs `--stranded=yes`, and report those totals as a % of **primary mapped** reads per sample.
+
+-   expects two htseq outputs per sample: `${sample}_rev_stranded_htseq.txt` and `${sample}_yes_stranded_htseq.txt`. The associative array `mapped_by_sample` stores the known primary-mapped counts for normalization.
+
+-   For each sample, it:
+
+    1.  Sums assigned reads (ignores htseq’s `__*` summary lines) for both modes.
+    2.  Extracts `__no_feature` counts for context/QC.
+    3.  Prints raw assigned totals and computes % assigned = assigned / primary_mapped × 100 for `reverse` and `yes`.
+
+-   The stranded setting with **higher % assigned** (and typically lower `__no_feature`) is the correct library orientation for downstream counting (e.g., choose `--stranded=reverse` if it wins).
+
+-   Save as `strandness_test.sh` and run in the directory with the htseq outputs in `ht-seq_files`
+
+``` bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# If you prefer not to hardcode, you could read these from ${s}.mapcount.txt instead.
+declare -A mapped_by_sample=(
+  [rhy51_EO_6cm]=38760798
+  [comrhy114_EO_adult]=21541128
+)
+
+for s in rhy51_EO_6cm comrhy114_EO_adult; do
+  rev_file="${s}_rev_stranded_htseq.txt"
+  yes_file="${s}_yes_stranded_htseq.txt"
+
+  # Sum assigned (exclude __ summary lines)
+  rev_assigned=$(awk '!/^__/ {sum+=$2} END{print sum+0}' "$rev_file")
+  yes_assigned=$(awk '!/^__/ {sum+=$2} END{print sum+0}' "$yes_file")
+
+  # Pull __no_feature for context
+  rev_nofeat=$(awk '$1=="__no_feature"{print $2+0}' "$rev_file")
+  yes_nofeat=$(awk '$1=="__no_feature"{print $2+0}' "$yes_file")
+
+  echo -e "${s}\treverse_assigned\t${rev_assigned}\tno_feature=${rev_nofeat}"
+  echo -e "${s}\tyes_assigned\t${yes_assigned}\tno_feature=${yes_nofeat}"
+
+  mapped="${mapped_by_sample[$s]}"
+
+  printf "%s\treverse_assigned_pct\t%.2f\n" "$s" \
+    "$(awk -v a="$rev_assigned" -v m="$mapped" 'BEGIN{print (m>0?100*a/m:0)}')"
+  printf "%s\tyes_assigned_pct\t%.2f\n" "$s" \
+    "$(awk -v a="$yes_assigned" -v m="$mapped" 'BEGIN{print (m>0?100*a/m:0)}')"
+done
 ```
 
 **Side Note:** Proper File naming conventions were manually done at the end of the analysis!
