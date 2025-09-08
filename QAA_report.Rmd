@@ -1,24 +1,31 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
 # QAA Report
 
 ---
 title: "PS2_report"
 author: "Daraudom Nhem"
-output: pdf_document
 date: "07/09/25"
+output:
+  pdf_document:
+    latex_engine: xelatex
 ---
 
 ## Part 1 - Read Quality Score Distribution
 
 ### Comparison of Demultipliex Code and FastQc
 
-#### SRR25630302 (rhy51_EO_6cm) Per Base Quality Score Distribution Plots
+#### Fig1A.SRR25630302 (rhy51_EO_6cm) Per Base Quality Score Distribution Plots
 
 | Generated Plot w/ Python Code | Generated Plot w/ FastQc |
 |------------------------------------|------------------------------------|
 | ![SRR25630302 Read 1](img_plots/rhy51_EO_6cm_qual_score_distribution_read1.png) | ![SRR25630302 Read 1](img_plots/rhy51_EO_6cm_fastqc_read_1.png) |
 | ![SRR25630302 Read 2](img_plots/rhy51_EO_6cm_qual_score_distribution_read2.png) | ![SRR25630302 Read 2](img_plots/rhy51_EO_6cm_fastqc_read_2.png) |
 
-#### SRR25630376 (comrhy114_EO_adult) Per Base Quality Score Distribution Plots
+#### Fig1B.SRR25630376 (comrhy114_EO_adult) Per Base Quality Score Distribution Plots
 
 | Generated Plot w/ Python Code | Generated Plot w/ FastQc |
 |------------------------------------|------------------------------------|
@@ -58,11 +65,11 @@ R2: `AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT`
 | SRR25630302 (rhy51_EO_6cm) | 45,365,378 | 44,820,566 (98.80%) | 352,919 (0.78%) | 172,523 (0.38%) | 19,370 (0.04%) |
 | SRR25630376 (comrhy114_EO_adult) | 35,780,088 | 35,382,751 (98.89%) | 216,426 (0.60%) | 161,326 (0.45%) | 9585 (0.05%) |
 
-#### Read Length Plot Distribution - SRR25630302 (rhy51_EO_6cm)
+#### Fig2A.Read Length Plot Distribution - SRR25630302 (rhy51_EO_6cm)
 
 ![](img_plots/posttrim_readlen_rhy51_EO_6cm.png)
 
-#### Read Length Plot Distribution - SRR25630376 (comrhy114_EO_adult)
+#### Fig2B.Read Length Plot Distribution - SRR25630376 (comrhy114_EO_adult)
 
 ![](img_plots/posttrim_readlen_comrhy114_EO_adult.png)
 
